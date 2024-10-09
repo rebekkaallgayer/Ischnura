@@ -1,0 +1,86 @@
+RangeShifter 2.0 
+================    =====================
+
+BATCH MODE 	yes
+SEED 	1725973973
+REPLICATES 	2
+YEARS 	20
+REPRODUCTIVE SEASONS / YEAR	1
+CELL-BASED MODEL
+BOUNDARIES 	reflective
+
+LANDSCAPE:	imported map
+TYPE: 	habitat codes
+FILE NAME: hab_ras.txt
+No. HABITATS:	8
+RESOLUTION (m): 	1000
+DIMENSIONS:  X 713  Y 1580
+AVAILABLE:   min.X 0 min.Y 0  max.X 712 max.Y 1579
+
+SPECIES DISTRIBUTION LOADED: 	yes
+RESOLUTION (m)	1000
+FILE NAME: spd_ras.txt
+
+ENVIRONMENTAL GRADIENT:	 no
+ENVIRONMENTAL STOCHASTICITY:	no
+LOCAL EXTINCTION PROBABILITY:	0.0
+
+SPECIES' PARAMETERS.
+REPRODUCTION:
+TYPE: Sexual model (simple)
+PROP. of MALES	0.5
+STAGE STRUCTURE:	no
+Rmax	2.2
+bc	1
+
+CARRYING CAPACITIES:
+Habitat 1: 	K 0
+Habitat 2: 	K 100
+Habitat 3: 	K 0
+Habitat 4: 	K 50
+Habitat 5: 	K 0
+Habitat 6: 	K 0
+Habitat 7: 	K 150
+Habitat 8: 	K 150
+
+DISPERSAL - EMIGRATION:	density-independent
+USE FULL KERNEL TO DETERMINE EMIGRATION: no
+SEX-DEPENDENT:   no
+STAGE-DEPENDENT: no
+INDIVIDUAL VARIABILITY: no
+EMIGRATION PROB.:	0.8
+
+DISPERSAL - TRANSFER: 	dispersal kernel
+TYPE: 	double negative exponential
+SEX-DEPENDENT:   no
+STAGE-DEPENDENT: no
+INDIVIDUAL VARIABILITY: no
+MEAN DISTANCE I: 	1500
+MEAN DISTANCE II: 	10000
+PROB. KERNEL I: 	0.9
+DISPERSAL MORTALITY:   constant
+MORTALITY PROBABILITY: 0
+
+DISPERSAL - SETTLEMENT:
+SEX-DEPENDENT:   no
+STAGE-DEPENDENT: no
+IF THE ARRIVAL CELL/PATCH IS UNSUITABLE: die
+MATING REQUIREMENTS: no
+
+GENETICS:
+No. of variable traits:  0
+
+INITIALISATION CONDITIONS:
+From species distribution: 	
+all presence cells/patches
+INITIAL NO. OF INDIVIDUALS: 	at half carrying capacity
+GEOGRAPHICAL CONSTRAINTS (cell numbers): 
+min X: 0 max X: 712
+min Y: 0 max Y: 1579
+
+OUTPUTS:
+Range - every 2 years
+Occupancy - every 2 years
+Populations - every 2 years
+SAVE MAPS: no
+SAVE TRAITS MAPS: no
