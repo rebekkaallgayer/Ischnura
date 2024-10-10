@@ -219,6 +219,7 @@ bgpts_nona<- bg_points[!is.na(bg_extract[,2]),]
 bg_env<- cbind(bgpts_nona[,c(4,3)], bg_nona)
 bg_env$Ischnura_elegans<- rep(0, nrow(bg_env))
 colnames(bg_env)<- c("lon", "lat", colnames(bg_env[,-c(1:2)]))
+write.table(bg_env, "data/bg_points_extract.txt", sep="\t", quote=F, row.names=F)
 isch_env<- rbind(isch_env, bg_env)
 
 
@@ -227,6 +228,23 @@ isch_env_dup <- isch_env[!duplicated(isch_env$cell),]
 write.table(isch_env_dup, "data/isch_env.txt", quote=F,row.names=F,sep="\t" )
 isch_env_dup<- read.table("data/isch_env.txt", sep="\t", header=T)
 
+
+##create cpue landscape for background points
+null_rast<- rast(ext(clim_fenno_ex), resolution=res(clim_fenno_ex))
+crs(null_rast) <- crs(Fenno)
+values(null_rast)<-0
+pres_freq<- as.data.frame(table(bg_env[,23]))
+pres_freq[,1] <- as.numeric(as.character(pres_freq[,1]))
+for(i in 1:nrow(pres_freq)){
+  null_rast[pres_freq[i,1]]<- pres_freq[i,2]
+}
+plot(null_rast, col=terr_cls)
+null_coarse<- aggregate(null_rast, fact=10, fun="sum")
+plot(null_coarse, col=terr_cls)
+null_coarse50<- aggregate(null_rast, fact=50, fun="sum")
+plot(null_coarse50, col=terr_cls)
+writeRaster(null_rast, "data/cpue_background.tif")
+writeRaster(null_coarse50, "data/cpue_background_coarse50.tif")
 
 #using CHELSA
 

@@ -6,13 +6,14 @@ library(data.table)
 library(geodata)
 library(terra)
 library(sdm)
-#library(dismo)
+library(dismo)
 library(maps)
 library(CoordinateCleaner)
 library(rgbif)
 library(corrplot)
 library(mecofun)
 library(usdm)
+
 
 setwd("C:/Users/Rey/Documents/Ischnura/Ischnura_SDM/")
 
@@ -135,4 +136,61 @@ summary(m_step_isch)
 # Explained deviance:
 expl_deviance(obs = isch_env_dup$Ischnura_elegans,
               pred = m_step_isch$fitted)
+#these models are terrible! 
 
+#ensemble models
+#Phisically exclude the collinear variables which are identified 
+#using vifcor or vifstep from a set of variables.
+clim_fenno_ex <- exclude(clim_fenno, v)
+
+ipts_k<- kfold(ischpts2, k=3)
+ipts_test<- ischpts2[ipts_k==3,]
+ipts_train<- ischpts2[!ipts_k==3,]
+ipts_train$species=1
+ipts_train<- vect(ipts_train)
+
+#~. means it takes species column and considers the rest as predictors, don't need to individually specify
+
+d <- sdmData(species~., ipts_train, predictors= clim_fenno_ex, 
+             bg = list(method='gRandom',n=1000))
+d
+m <- sdm(species~., d, methods=c('glm','brt','rf','fda'), replication=c('sub','boot'),
+         test.p=30,n=3, parallelSetting=list(ncore=4,method='parallel'))
+m
+
+p1 <- predict(m, clim_fenno_ex,filename='isch_predict_worldclim.img')
+#p1<- rast("pr.img")
+p1<- rast("isch_predict_worldclim.img")
+plot(p1, col=terr_cls)
+p1
+names(p1)
+
+#try it with set background points
+bg_env<- read.table("data/bg_points_extract.txt", header=T, sep="\t")
+bg_env1<- bg_env[,c(1:2, 6,11:14, 18,21)]
+colnames(bg_env1)<- c("x", "y", colnames(bg_env[,-c(1:2)]))
+d_bg <- sdmData(species~., ipts_train, predictors= clim_fenno_ex, bg = bg_env1)
+
+m_bg <- sdm(species~., d_bg, methods=c('glm','brt','rf','fda'), replication=c('sub','boot'),
+         test.p=30,n=3, parallelSetting=list(ncore=4,method='parallel'))
+m_bg
+## the AUC and especially the TSS are WAY lower using the species-specific background points!
+
+#maybe i can weight the background points by creating a CPUE landscape
+#from the species specific data
+d_wbg <- sdmData(species~., ipts_train, predictors= clim_fenno_ex, 
+             bg = list(method='gRandom',n=1000,bias=null_rast))
+d_wbg
+m_wbg <- sdm(species~., d_wbg, methods=c('glm','brt','rf','fda'), replication=c('sub','boot'),
+            test.p=30,n=3, parallelSetting=list(ncore=4,method='parallel'))
+m_wbg
+#weighted by species specific background is exactly the same as using the points themselves
+null_coarse50<- rast("data/cpue_background_coarse50.tif")
+d_wcbg <- sdmData(species~., ipts_train, predictors= clim_fenno_ex, 
+                 bg = list(method='gRandom',n=1000,bias=null_coarse50))
+d_wcbg
+m_wcbg <- sdm(species~., d_wcbg, methods=c('glm','brt','rf','fda'), replication=c('sub','boot'),
+             test.p=30,n=3, parallelSetting=list(ncore=4,method='parallel'))
+m_wcbg
+#weighted by species specific background is only very slightly better at aggregation factor 10
+#it does get better with a x50 aggregation factor but the TSS is still really low
