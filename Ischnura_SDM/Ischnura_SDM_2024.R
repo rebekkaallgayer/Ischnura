@@ -13,6 +13,7 @@ library(rgbif)
 library(corrplot)
 library(mecofun)
 library(usdm)
+library(predicts)
 
 
 setwd("C:/Users/Rey/Documents/Ischnura/Ischnura_SDM/")
@@ -86,22 +87,25 @@ terr_cls<- terrain.colors(100, rev=T)
 clim_fenno<- rast("data/climate/wc2.1_country/clim_fenno.tif")
 plot(clim_fenno, col=terr_cls)
 
-#cleaned and combined ischnura points, no duplicates, with extracted env data
-isch_env_dup<- read.table("data/isch_env.txt", sep="\t", header=T)
+#cleaned and combined ischnura points, no duplicates, with extracted env data, spatially thinned!
+#and it has already been split into the 70:30 train:test 
+#isch_env_dup<- read.table("data/isch_env.txt", sep="\t", header=T)
+isch_env_dup<- read.table("data/isch_presabs_thinned10.txt", sep="\t", header=T)
+isch_env_dup<- read.table("data/isch_train.txt", sep="\t", header=T)
 
 # Check for collinearity and reduce the data set to only weakly correlated variables.
-cor_mat <- cor(isch_env_dup[,-c(1:3,23:24)], method='spearman')
+cor_mat <- cor(isch_env_dup[,-c(1:4,24:25)], method='spearman')
 # We can visualise this correlation matrix. For better visibility, 
 # we plot the correlation coefficients as percentages.
 corrplot.mixed(cor_mat, tl.pos='lt', tl.cex=0.6, number.cex=0.5, addCoefasPercent=T)
 
 #from sdm package tutorial
-vif(clim_fenno)
-v <- vifstep(isch_env_dup[,-c(1:3,23:24)]) #i think threshold is by default 10
+#vif(clim_fenno)
+v <- vifstep(isch_env_dup[,-c(1:4,24:25)]) #i think threshold is by default 10
 
 # Run select07()
-var_sel <- select07(X=isch_env_dup[,-c(1:3,23:24)], 
-                    y=isch_env_dup$Ischnura_elegans, 
+var_sel <- select07(X=isch_env_dup[,-c(1:4,24:25)], 
+                    y=isch_env_dup$occ, 
                     threshold=0.7)
 
 # Check out the structure of the resulting object:
@@ -109,15 +113,15 @@ str(var_sel)
 
 # We extract the names of the weakly correlated predictors ordered by the univariate variable importance in terms of AIC:
 pred_sel <- var_sel$pred_sel
-sum(isch_env_dup$Ischnura_elegans)
+sum(isch_env_dup$occ)
 
 #the variables in pred_sel vs v are slightly different!
 #the selection from v i think is better so using that going forward
 
 # Define a full model with all weakly correlated variables including their linear and quadratic terms.
 # Fit the full model:
-m_full_isch <- glm( Ischnura_elegans ~ bio3 + I(bio3^2) + bio8 + I(bio8^2)
-                  + bio9 + I(bio9^2)+ bio10 + I(bio10^2)+ bio11 + I(bio11^2)
+m_full_isch <- glm( occ ~ bio2 + I(bio2^2) +bio3 + I(bio3^2) + bio8 + I(bio8^2)
+                  + bio9 + I(bio9^2)+ bio10 + I(bio10^2)+ 
                   + bio15 + I(bio15^2)+ bio18 + I(bio18^2),
                   family='binomial', data=isch_env_dup)
 
@@ -126,7 +130,7 @@ summary(m_full_isch)
 # Run the full model.
 # Simplify the model using stepwise variable selection step()
 # Explained deviance:
-expl_deviance(obs = isch_env_dup$Ischnura_elegans,
+expl_deviance(obs = isch_env_dup$occ,
               pred = m_full_isch$fitted)
 
 m_step_isch <- step(m_full_isch) 
@@ -134,11 +138,39 @@ m_step_isch <- step(m_full_isch)
 summary(m_step_isch)
 # Compare the full model and the reduced model in terms of AIC and explained deviance.
 # Explained deviance:
-expl_deviance(obs = isch_env_dup$Ischnura_elegans,
+expl_deviance(obs = isch_env_dup$occ,
               pred = m_step_isch$fitted)
-#these models are terrible! 
+#occ ~ bio2 + I(bio2^2) + I(bio3^2) + bio9 + 
+#bio10 + I(bio10^2) + bio15 + I(bio15^2) + bio18
 
-#ensemble models
+#bio2: Mean Diurnal Range (Mean of monthly (max temp - min temp))
+#bio3: Isothermality (BIO2/BIO7) (×100)
+#bio9: Mean Temperature of Driest Quarter
+#bio10: Mean Temperature of Warmest Quarter
+#bio15: Precipitation Seasonality (Coefficient of Variation)
+#bio18: Precipitation of Warmest Quarter
+# Let's only use the two most important predictors for now
+my_preds <- c('bio2','bio3','bio10','bio9','bio15','bio18')
+
+# Now, we plot the response surface:
+# For the response surface, we first prepare the 3D-grid with environmental gradient and predictions
+par(mfrow=c(3,2)) 
+partial_response(m_step_isch, predictors = isch_env_dup[,my_preds], main='GLM', ylab='Occurrence probability')
+
+# Performance measures
+isch_test<-read.table("data/isch_test.txt", sep="\t", header=T)
+
+(perf_glm <- evalSDM(isch_test$occ, predict(m_step_isch, isch_test[,my_preds], type='response') ))
+
+# Map predictions:
+bio_curr_df <- data.frame(crds(clim_fenno[[my_preds]]), as.points(clim_fenno[[my_preds]]))
+r_glm_bin <- r_glm_pred <- terra::rast(cbind(bio_curr_df[,1:2],
+                                             predict(m_step_isch, bio_curr_df, type='response')), 
+                                       type='xyz', crs=crs(clim_fenno))
+values(r_glm_bin) <- ifelse(values(r_glm_pred)>=perf_glm$thresh, 1, 0)
+plot(c(r_glm_pred, r_glm_bin),main=c('GLM prob.','GLM bin.'), axes=F, col=terr_cls)   
+
+#ensemble models from sdm package
 #Phisically exclude the collinear variables which are identified 
 #using vifcor or vifstep from a set of variables.
 clim_fenno_ex <- exclude(clim_fenno, v)

@@ -5,6 +5,7 @@ library(sdm)
 library(maps)
 library(CoordinateCleaner)
 library(rgbif)
+library(spThin)
 
 setwd("C:/Users/Rey/Documents/Ischnura/Ischnura_SDM/")
 
@@ -209,6 +210,8 @@ ischpts_nona<- ischpts2[!is.na(fenno_extract[,2]),]
 isch_env<- cbind(ischpts_nona, fenno_nona)
 #sum(duplicated(isch_env$cell))
 isch_env$Ischnura_elegans<- rep(1, nrow(isch_env))
+isch_env<- isch_env[!duplicated(isch_env$cell),]
+write.table(isch_env, "data/isch_points_extract.txt", sep="\t", quote=F, row.names=F)
 
 #do the same for the background points
 bg_extract<- terra::extract(x=clim_fenno,
@@ -246,41 +249,86 @@ plot(null_coarse50, col=terr_cls)
 writeRaster(null_rast, "data/cpue_background.tif")
 writeRaster(null_coarse50, "data/cpue_background_coarse50.tif")
 
-#using CHELSA
+###generating background points using different pseudo-absence data (from Damaris' tutorials)
+#load presence data
+ischpts2<- read.table("data/isch_points_2000.txt", header=T, sep="\t")
+isch_env<- read.table("data/isch_points_extract.txt", sep="\t", header=T)
 
-#using https://github.com/MirzaCengic/climatedata/?tab=readme-ov-file
+plot(Fenno)
+points(ischpts2, col="red",pch=19, cex=0.1)
+clim_fenno<- rast("data/climate/wc2.1_country/clim_fenno.tif")
+isch_coords<- isch_env[,c("lon", "lat")]
 
-# Get models with all 4 RCP scenarios
-# all_models<- check_models()
-# models_all_pmip<- all_models[all_models$scenario=="pmip3",]$model
-# #"CCSM4"        "CNRM-CM5"     "FGOALS-g2"    "IPSL-CM5A-LR" "MIROC-ESM"    "MPI-ESM-P"   "MRI-CGCM3"
-# my_output_directory <- "C:/Users/Rey/Documents/Ischnura/Ischnura_SDM/data/CHELSA"
-# 
-# 
-# chelsa_bioclim <- get_chelsa(output_dir = my_output_directory, model_string=models_all_pmip,
-#                              scenario_string = "pmip3",
-#                              period = "past")
-# 
-# chelsa_bioclim <- get_chelsa(output_dir = my_output_directory, model_string="IPSL-CM5A-LR",
-#                              scenario_string = "pmip3",
-#                              period = "past")
+# Make SpatVector:
+presences <- terra::vect( as.matrix(isch_coords), crs=crs(clim_fenno))
 
+# Then, place a buffer of 100 km radius around our presence points
+v_buf <- terra::buffer(presences, width=100000)
 
-#using https://insileco.r-universe.dev/rchelsa/doc/manual.html#chl_global_mod
-#  my_output_directory <- "C:/Users/Rey/Documents/Ischnura/Ischnura_SDM/data/CHELSA"
-# 
-# chl_global_mod(
-#   horizon = 2040,
-#   var = "bio",
-#   val = 10,
-#   model = "ipsl-cm6a",
-#   scenario = "ssp126",
-#   path = my_output_directory
-# )
-# 
-# # chl_global_obsv_daily(var, month = 1, day = 1, path = ".")
-# # 
-# # chl_global_obsv_monthly(var, month = 1, year = 1980, path = ".")
-# 
-# #exploring data
-# chl_global_ras<- terra::rast("data/CHELSA/CHELSA_bio10_2011-2040_ipsl-cm6a-lr_ssp126_V.2.1.tif")
+# Create a background mask with target resolution and extent from climate layers
+# Set all raster cells outside the buffer to NA.
+bg <- clim_fenno[[1]]
+values(bg)[!is.na(values(bg))] <- 1
+region_buf <- terra::mask(bg, v_buf)
+plot(bg, col='grey90', legend=F)
+plot(region_buf, add=T, col='grey60', legend=F)
+
+# Exclude presence locations:
+sp_cells <- terra::extract(region_buf, presences, cells=T)$cell
+region_buf_exclp <- region_buf
+values(region_buf_exclp)[sp_cells] <- NA
+
+# Randomly select background data within the buffer, excluding presence locations. We sample 10 times as many background data as we have presences. To ensure that we find enough samples, we use the argument exhaustive=T
+bg_rand_buf <- terra::spatSample(region_buf_exclp, length(presences), "random", na.rm=T, as.points=TRUE, exhaustive=T)
+points(bg_rand_buf, pch=19, cex=0.1)
+points(presences, pch=19, cex=0.1, col='red')
+
+# First, we prepare the presences data to contain a column indicating 1 for presence.
+sp_env <- data.frame(isch_coords, occ=1)
+
+# Second, we make sure the background data have the same columns, and indicate 0 for absence.
+bg_rand_buf_df <- data.frame(terra::geom(bg_rand_buf)[,c('x','y')])
+summary(bg_rand_buf_df)
+names(bg_rand_buf_df) <- c('lon','lat')
+bg_rand_buf_df$occ <- 0
+summary(bg_rand_buf_df)
+# Third, we bind these two data sets
+sp_env <- rbind(sp_env, bg_rand_buf_df)
+summary(sp_env)
+# Last, we join this combined data set with the climate data.
+sp_env <- cbind(sp_env, terra::extract(x = clim_fenno, y = sp_env[,c('lon','lat')], cells=T) )
+summary(sp_env)
+
+##spatial thinning
+
+# The spThin package requires longitude/latitude coordinates, which we already have.
+
+# thin() expects that the data.frame contains a column with the species name
+sp_env$sp <- 'Ischnura_elegans'
+
+# Remove adjacent cells of presence/background data:
+xy <- thin(sp_env, lat.col='lat',long.col='lon',spec.col='sp', 
+           thin.par=10,reps=1, write.files=F,locs.thinned.list.return=T)
+
+# Keep the coordinates with the most presence records
+xy_keep <- xy[[1]]
+
+# Thin the dataset - here, we first extract the cell numbers for the thinned coordinates and then use these to subset our data frame.
+cells_thinned <- terra::cellFromXY(clim_fenno, xy_keep)
+sp_thinned <- sp_env[sp_env$cell %in% cells_thinned,]
+write.table(sp_thinned, "data/isch_presabs_thinned10.txt", sep="\t", row.names=F, quote=F)
+# Plot the map and data
+plot(bg, col='grey90', legend=F)
+points(sp_thinned[,1:2],pch=19,col=c('black','red')[as.factor(sp_thinned$occ)], cex=0.3)
+
+# First, we randomly select 70% of the rows that will be used as training data
+train_i <- sample(seq_len(nrow(sp_thinned)), size=round(0.7*nrow(sp_thinned)))
+
+# Then, we can subset the training and testing data
+isch_train <- sp_thinned[train_i,]
+isch_test <- sp_thinned[-train_i,]
+
+# We store the split information for later:
+write(train_i, file='data/indices_traindata.txt')
+write.table(isch_train, "data/isch_train.txt", sep="\t", quote=F, row.names=F)
+write.table(isch_test, "data/isch_test.txt", sep="\t", quote=F, row.names=F)
