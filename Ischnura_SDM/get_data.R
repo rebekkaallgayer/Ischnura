@@ -6,6 +6,8 @@ library(maps)
 library(CoordinateCleaner)
 library(rgbif)
 library(spThin)
+library(igraph)
+library(sf)
 
 setwd("C:/Users/Rey/Documents/Ischnura/Ischnura_SDM/")
 
@@ -332,3 +334,169 @@ isch_test <- sp_thinned[-train_i,]
 write(train_i, file='data/indices_traindata.txt')
 write.table(isch_train, "data/isch_train.txt", sep="\t", quote=F, row.names=F)
 write.table(isch_test, "data/isch_test.txt", sep="\t", quote=F, row.names=F)
+
+
+##working with .gml files for freshwater layer
+#library(igraph)
+library(sf)
+# Fenno<- vect("data/Fenno.gpkg")
+# fenno_proj<- terra::project(Fenno,"EPSG:3006")
+# plot(Fenno)
+# plot(fenno_proj)
+SWE<- readRDS("data/gadm/gadm41_SWE_0_pk.rds")
+swe_proj<- terra::project(SWE,"EPSG:3006")
+plot(SWE)
+
+gml_dir<- "../IschnuraRangeShifter/lakes_gml_inspire/"
+gml_files<- list.files(gml_dir, pattern=".gml")
+
+##read in a single file 
+sp_dat<- st_read(paste(gml_dir,gml_files[1], sep=""))
+plot(sp_dat$geometry)
+plot(fenno_proj, add=T)
+plot(swe_proj, add=T)
+
+
+#how to create a new layer, if .gml file overlaps, give cell value of 1
+#swe_ras<- rast(swe_proj)
+
+##get environmental data
+terr_cls<- terrain.colors(100, rev=T)
+clim_fenno<- rast("data/climate/wc2.1_country/clim_fenno.tif")
+plot(clim_fenno, col=terr_cls)
+clim_proj<- terra::project(clim_fenno$bio1, "EPSG:3006") #roughly 500x500km
+
+#get raster just for sweden? 
+swe_clim<- crop(clim_proj, swe_proj)
+swe_clim[!is.na(swe_clim)]<- 1
+swe_clim
+plot(swe_clim)
+plot(sp_dat$geometry, add=T)
+
+#rasterise water data
+sp_vect<- vect(sp_dat$geometry)
+plot(sp_vect)
+sp_ras<- terra::rasterize(sp_vect, swe_clim)
+plot(sp_ras)
+swe_water<- swe_clim + sp_ras
+plot(swe_water, col=terr_cls)
+
+swe_blank<- crop(clim_proj, swe_proj)
+swe_blank[!is.na(swe_blank)]<-0
+swe_water<- swe_blank
+for(f in 1:length(gml_files)){
+  print(f)
+  sp_dat<- st_read(paste(gml_dir,gml_files[f], sep=""))
+  sp_vect<- vect(sp_dat$geometry)
+  sp_ras<- terra::rasterize(sp_vect, swe_blank, cover=T)
+  if(f==1){
+    swe_water<- sp_ras
+  }
+  else{
+    swe_water<- merge(swe_water, sp_ras)
+  }
+}
+swe_water
+plot(swe_water)
+terra::writeRaster(swe_water, "data/perc_cover_freshwater.tif")
+swe_water<- rast("data/perc_cover_freshwater.tif")
+plot(swe_water)
+
+
+###exploring Norway and FInland water shapefiles
+#downloaded data from https://diva-gis.org/data.html
+fin_water<- vect("data/FIN_wat/FIN_water_areas_dcw.shp")
+fin_wat_proj<- terra::project(fin_water,"EPSG:3006")
+plot(fin_wat_proj)
+fin_line<- vect("data/FIN_wat/FIN_water_lines_dcw.shp")
+fin_line_proj<- terra::project(fin_line,"EPSG:3006")
+plot(fin_line_proj)
+FIN<- readRDS("data/gadm/gadm41_FIN_0_pk.rds")
+fin_proj<- terra::project(FIN,"EPSG:3006")
+plot(fin_proj)
+fin_blank<- crop(clim_proj, fin_proj)
+fin_blank[!is.na(fin_blank)]<- 0
+fin_water_ras<- terra::rasterize(fin_wat_proj, fin_blank, cover=T)
+plot(fin_water_ras)
+fin_lines_ras<- terra::rasterize(fin_line_proj, fin_blank, cover=T)
+plot(fin_lines_ras)
+fin_comb<- merge(fin_lines_ras, fin_water_ras)
+plot(fin_comb)
+
+nor_water<- vect("data/NOR_wat/NOR_water_areas_dcw.shp")
+nor_wat_proj<- terra::project(nor_water,"EPSG:3006")
+plot(nor_wat_proj)
+nor_line<- vect("data/NOR_wat/NOR_water_lines_dcw.shp")
+nor_line_proj<- terra::project(nor_line,"EPSG:3006")
+plot(nor_line_proj)
+NOR<- readRDS("data/gadm/gadm41_NOR_0_pk.rds")
+nor_proj<- terra::project(NOR,"EPSG:3006")
+plot(nor_proj)
+nor_blank<- crop(clim_proj, nor_proj)
+nor_blank[!is.na(nor_blank)]<- 0
+nor_water_ras<- terra::rasterize(nor_wat_proj, nor_blank, cover=T)
+plot(nor_water_ras)
+nor_lines_ras<- terra::rasterize(nor_line_proj, nor_blank, cover=T)
+plot(nor_lines_ras)
+nor_comb<- merge(nor_lines_ras, nor_water_ras)
+plot(nor_comb)
+
+#getting equivalent sweden data
+swe_wat<- vect("data/SWE_wat/SWE_water_areas_dcw.shp")
+swe_wat_proj<- terra::project(swe_wat,"EPSG:3006")
+plot(swe_wat_proj)
+swe_line<- vect("data/SWE_wat/SWE_water_lines_dcw.shp")
+swe_line_proj<- terra::project(swe_line,"EPSG:3006")
+plot(swe_line_proj)
+SWE<- readRDS("data/gadm/gadm41_SWE_0_pk.rds")
+swe_proj<- terra::project(SWE,"EPSG:3006")
+plot(swe_proj)
+swe_blank<- crop(clim_proj, swe_proj)
+swe_blank[!is.na(swe_blank)]<- 0
+swe_water_ras<- terra::rasterize(swe_wat_proj, swe_blank, cover=T)
+plot(swe_water_ras)
+swe_lines_ras<- terra::rasterize(swe_line_proj, swe_blank, cover=T)
+plot(swe_lines_ras)
+swe_comb<- merge(swe_lines_ras, swe_water_ras)
+plot(swe_comb)
+
+fenno_water<- merge(swe_comb, fin_comb)
+fenno_water<- merge(fenno_water, nor_comb)
+plot(fenno_water)
+
+terra::writeRaster(fenno_water, "data/perc_cover_freshwater_Fenno.tif")
+
+
+##exploring land cover
+nor_land<- rast("data/NOR_msk_cov_tif/NOR_msk_cov.tif")
+plot(nor_land)
+swe_land<- rast("data/SWE_msk_cov_tif/SWE_msk_cov.tif")
+plot(swe_land)
+swe_land_proj<- terra::project(swe_land,"EPSG:3006")
+terra::writeRaster(swe_land_proj, "data/land_cover_swe.tif", overwrite=T)
+
+fin_land<- rast("data/FIN_msk_cov_tif/FIN_msk_cov.tif")
+plot(fin_land)
+
+fenno_land<- merge(swe_land, fin_land)
+fenno_land<- merge(fenno_land, nor_land)
+plot(fenno_land)
+fenno_land_proj<- terra::project(fenno_land,"EPSG:3006")
+terra::writeRaster(fenno_land_proj, "data/land_cover_Fenno.tif", overwrite=T)
+
+#elevation
+nor_elev<- rast("data/NOR_msk_alt_tif/NOR_msk_alt.tif")
+plot(nor_elev)
+swe_elev<- rast("data/SWE_msk_alt_tif/SWE_msk_alt.tif")
+swe_elev_proj<- terra::project(swe_elev,"EPSG:3006")
+terra::writeRaster(swe_elev_proj, "data/elev_swe.tif", overwrite=T)
+fin_elev<- rast("data/FIN_msk_alt_tif/FIN_msk_alt.tif")
+plot(fin_elev)
+
+fenno_elev<- merge(swe_elev, fin_elev)
+fenno_elev<- merge(fenno_elev, nor_elev)
+fenno_elev_proj<- terra::project(fenno_elev,"EPSG:3006")
+plot(fenno_elev_proj)
+terra::writeRaster(fenno_elev_proj, "data/elev_Fenno.tif", overwrite=T)
+
+#stack(c(elev.mask, dcoast.mask2, ecoreg.mask, bio1.mask, bio2.mask, bio8.mask, bio10.mask))

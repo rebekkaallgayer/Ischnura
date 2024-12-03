@@ -525,3 +525,18 @@ plot(region,col='grey',legend=F)
 plot(region_buf,legend=F, add=T)
 points(sp[sp$sp=='Populus_imagines',1:2],pch='+',col='red')
 points(bg_rand_outbuf,pch=19,cex=0.3)
+
+####GAMs
+
+library(mgcv)
+
+# Fit GAM with spline smoother
+m_gam <- mgcv::gam( Emberiza_citrinella ~ s(bio12,k=4) + s(bio9, k=4),
+                    family='binomial', data=sp_train)
+
+# Now, we plot the response surface:
+xyz$z <- predict(m_gam, xyz[,1:2], type='response')
+wireframe(z ~ bio12 + bio9, data = xyz, zlab = list("Occurrence prob.", rot=90), 
+          drape = TRUE, col.regions = cls, scales = list(arrows = FALSE), 
+          zlim = c(0, 1), main='GAM', xlab='bio12', ylab='bio9', 
+          screen=list(z = -120, x = -70, y = 3))

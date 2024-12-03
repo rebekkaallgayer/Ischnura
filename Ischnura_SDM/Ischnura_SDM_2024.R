@@ -13,6 +13,7 @@ library(rgbif)
 library(corrplot)
 library(mecofun)
 library(usdm)
+library(mgcv)
 library(predicts)
 
 
@@ -170,16 +171,43 @@ r_glm_bin <- r_glm_pred <- terra::rast(cbind(bio_curr_df[,1:2],
 values(r_glm_bin) <- ifelse(values(r_glm_pred)>=perf_glm$thresh, 1, 0)
 plot(c(r_glm_pred, r_glm_bin),main=c('GLM prob.','GLM bin.'), axes=F, col=terr_cls)   
 
+###GAMs
+
+# Fit GAM with spline smoother
+m_gam <- mgcv::gam( occ ~ s(bio2,k=4) + s(bio3, k=4)+s(bio10,k=4) + 
+                      s(bio9, k=4)+ s(bio15,k=4) + s(bio18, k=4),
+                    family='binomial', data=isch_env_dup)
+
+# Plot partial response curves:
+par(mfrow=c(2,3)) 
+partial_response(m_gam, predictors = isch_env_dup[,my_preds], main='GAM', ylab='Occurrence probability')
+
+# Performance measures
+(perf_gam <- evalSDM(isch_test$occ, predict(m_gam, isch_test[,my_preds], type='response') ))
+
+# Map predictions (the data frame bio_curr_df was defined previously):
+r_gam_bin <- r_gam_pred <- terra::rast(cbind(bio_curr_df[,1:2],
+                                             predict(m_gam, bio_curr_df, type='response')),
+                                       type='xyz', crs=crs(clim_fenno))
+values(r_gam_bin) <- ifelse(values(r_gam_pred)>=perf_gam$thresh, 1, 0)
+plot(c(r_gam_pred, r_gam_bin),
+     main=c('GAM prob.','GAM bin.'), axes=F, col=terr_cls)    
+
+###Machine-learning methods
+
+
 #ensemble models from sdm package
 #Phisically exclude the collinear variables which are identified 
 #using vifcor or vifstep from a set of variables.
 clim_fenno_ex <- exclude(clim_fenno, v)
 
-ipts_k<- kfold(ischpts2, k=3)
-ipts_test<- ischpts2[ipts_k==3,]
-ipts_train<- ischpts2[!ipts_k==3,]
+# ipts_k<- kfold(ischpts2, k=3)
+# ipts_test<- ischpts2[ipts_k==3,]
+# ipts_train<- ischpts2[!ipts_k==3,]
+# ipts_train$species=1
+# ipts_train<- vect(ipts_train)
+ipts_train<- vect(isch_env_dup[isch_env_dup$occ==1,1:2])
 ipts_train$species=1
-ipts_train<- vect(ipts_train)
 
 #~. means it takes species column and considers the rest as predictors, don't need to individually specify
 
@@ -190,7 +218,7 @@ m <- sdm(species~., d, methods=c('glm','brt','rf','fda'), replication=c('sub','b
          test.p=30,n=3, parallelSetting=list(ncore=4,method='parallel'))
 m
 
-p1 <- predict(m, clim_fenno_ex,filename='isch_predict_worldclim.img')
+p1 <- predict(m, clim_fenno_ex,filename='isch_predict_worldclim.img', overwrite=T)
 #p1<- rast("pr.img")
 p1<- rast("isch_predict_worldclim.img")
 plot(p1, col=terr_cls)
