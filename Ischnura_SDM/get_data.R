@@ -388,7 +388,7 @@ for(f in 1:length(gml_files)){
   print(f)
   sp_dat<- st_read(paste(gml_dir,gml_files[f], sep=""))
   sp_vect<- vect(sp_dat$geometry)
-  sp_ras<- terra::rasterize(sp_vect, swe_blank, cover=T)
+  sp_ras<- terra::rasterize(sp_vect, swe_blank, update=T,cover=T)
   if(f==1){
     swe_water<- sp_ras
   }
@@ -401,70 +401,74 @@ plot(swe_water)
 terra::writeRaster(swe_water, "data/perc_cover_freshwater.tif")
 swe_water<- rast("data/perc_cover_freshwater.tif")
 plot(swe_water)
-
+swe_filled<- swe_water+swe_blank
 
 ###exploring Norway and FInland water shapefiles
 #downloaded data from https://diva-gis.org/data.html
 fin_water<- vect("data/FIN_wat/FIN_water_areas_dcw.shp")
-fin_wat_proj<- terra::project(fin_water,"EPSG:3006")
-plot(fin_wat_proj)
+#fin_wat_proj<- terra::project(fin_water,"EPSG:3006")
+#plot(fin_wat_proj)
 fin_line<- vect("data/FIN_wat/FIN_water_lines_dcw.shp")
-fin_line_proj<- terra::project(fin_line,"EPSG:3006")
-plot(fin_line_proj)
+#fin_line_proj<- terra::project(fin_line,"EPSG:3006")
+#plot(fin_line_proj)
 FIN<- readRDS("data/gadm/gadm41_FIN_0_pk.rds")
-fin_proj<- terra::project(FIN,"EPSG:3006")
-plot(fin_proj)
-fin_blank<- crop(clim_proj, fin_proj)
+#fin_proj<- terra::project(FIN,"EPSG:3006")
+#plot(fin_proj)
+fin_blank<- crop(clim_fenno, FIN)
 fin_blank[!is.na(fin_blank)]<- 0
-fin_water_ras<- terra::rasterize(fin_wat_proj, fin_blank, cover=T)
+fin_water_ras<- terra::rasterize(fin_water, fin_blank, cover=T)
 plot(fin_water_ras)
-fin_lines_ras<- terra::rasterize(fin_line_proj, fin_blank, cover=T)
+fin_lines_ras<- terra::rasterize(fin_line, fin_blank, cover=T)
 plot(fin_lines_ras)
 fin_comb<- merge(fin_lines_ras, fin_water_ras)
 plot(fin_comb)
+plot(fin_comb, add=T)
 
 nor_water<- vect("data/NOR_wat/NOR_water_areas_dcw.shp")
-nor_wat_proj<- terra::project(nor_water,"EPSG:3006")
-plot(nor_wat_proj)
+#nor_wat_proj<- terra::project(nor_water,"EPSG:3006")
+#plot(nor_wat_proj)
 nor_line<- vect("data/NOR_wat/NOR_water_lines_dcw.shp")
-nor_line_proj<- terra::project(nor_line,"EPSG:3006")
-plot(nor_line_proj)
+#nor_line_proj<- terra::project(nor_line,"EPSG:3006")
+#plot(nor_line_proj)
 NOR<- readRDS("data/gadm/gadm41_NOR_0_pk.rds")
-nor_proj<- terra::project(NOR,"EPSG:3006")
-plot(nor_proj)
-nor_blank<- crop(clim_proj, nor_proj)
+#nor_proj<- terra::project(NOR,"EPSG:3006")
+#plot(nor_proj)
+nor_blank<- crop(clim_fenno, nor_water)
 nor_blank[!is.na(nor_blank)]<- 0
-nor_water_ras<- terra::rasterize(nor_wat_proj, nor_blank, cover=T)
+nor_water_ras<- terra::rasterize(nor_water, nor_blank, cover=T)
 plot(nor_water_ras)
-nor_lines_ras<- terra::rasterize(nor_line_proj, nor_blank, cover=T)
+nor_lines_ras<- terra::rasterize(nor_line, nor_blank, cover=T)
 plot(nor_lines_ras)
 nor_comb<- merge(nor_lines_ras, nor_water_ras)
 plot(nor_comb)
+plot(nor_comb, add=T)
 
 #getting equivalent sweden data
 swe_wat<- vect("data/SWE_wat/SWE_water_areas_dcw.shp")
-swe_wat_proj<- terra::project(swe_wat,"EPSG:3006")
-plot(swe_wat_proj)
+#swe_wat_proj<- terra::project(swe_wat,"EPSG:3006")
+#plot(swe_wat_proj)
 swe_line<- vect("data/SWE_wat/SWE_water_lines_dcw.shp")
-swe_line_proj<- terra::project(swe_line,"EPSG:3006")
-plot(swe_line_proj)
+#swe_line_proj<- terra::project(swe_line,"EPSG:3006")
+#plot(swe_line_proj)
 SWE<- readRDS("data/gadm/gadm41_SWE_0_pk.rds")
-swe_proj<- terra::project(SWE,"EPSG:3006")
-plot(swe_proj)
-swe_blank<- crop(clim_proj, swe_proj)
+#swe_proj<- terra::project(SWE,"EPSG:3006")
+#plot(swe_proj)
+swe_blank<- crop(clim_fenno, swe_wat)
 swe_blank[!is.na(swe_blank)]<- 0
-swe_water_ras<- terra::rasterize(swe_wat_proj, swe_blank, cover=T)
+swe_water_ras<- terra::rasterize(swe_wat, swe_blank, cover=T)
 plot(swe_water_ras)
-swe_lines_ras<- terra::rasterize(swe_line_proj, swe_blank, cover=T)
+swe_lines_ras<- terra::rasterize(swe_line, swe_blank, cover=T)
 plot(swe_lines_ras)
 swe_comb<- merge(swe_lines_ras, swe_water_ras)
 plot(swe_comb)
+plot(swe_comb, add=T)
 
 fenno_water<- merge(swe_comb, fin_comb)
+plot(fenno_water, add=T)
 fenno_water<- merge(fenno_water, nor_comb)
 plot(fenno_water)
 
-terra::writeRaster(fenno_water, "data/perc_cover_freshwater_Fenno.tif")
+terra::writeRaster(fenno_water, "data/perc_cover_freshwater_Fenno_ll.tif")
 
 
 ##exploring land cover
@@ -482,7 +486,7 @@ fenno_land<- merge(swe_land, fin_land)
 fenno_land<- merge(fenno_land, nor_land)
 plot(fenno_land)
 fenno_land_proj<- terra::project(fenno_land,"EPSG:3006")
-terra::writeRaster(fenno_land_proj, "data/land_cover_Fenno.tif", overwrite=T)
+terra::writeRaster(fenno_land, "data/land_cover_Fenno_ll.tif", overwrite=T)
 
 #elevation
 nor_elev<- rast("data/NOR_msk_alt_tif/NOR_msk_alt.tif")
@@ -496,7 +500,100 @@ plot(fin_elev)
 fenno_elev<- merge(swe_elev, fin_elev)
 fenno_elev<- merge(fenno_elev, nor_elev)
 fenno_elev_proj<- terra::project(fenno_elev,"EPSG:3006")
-plot(fenno_elev_proj)
-terra::writeRaster(fenno_elev_proj, "data/elev_Fenno.tif", overwrite=T)
+plot(fenno_elev)
+terra::writeRaster(fenno_elev, "data/elev_Fenno_ll.tif", overwrite=T)
 
+##creating distance from coast
+sea<-rast("data/swe_sea.tif")
+plot(sea)
+#make all cells that are not 8 NA
+sea_8<- subst(sea, 1:7, NA)
+plot(sea_8)
+sea_dist<- distance(sea_8)
+plot(sea_dist)
+
+#but that's just sweden!
+fenno_elev<- rast("data/elev_Fenno_ll.tif")
+fenno_1<- fenno_elev
+fenno_1[!is.na(fenno_1)]<- 1
+#plot(fenno_1)
+fenno_2<-fenno_1
+fenno_2[is.na(fenno_2)]<- 2
+#plot(fenno_2)
+fenno_NA<- fenno_2
+fenno_NA[fenno_NA==1]<-NA
+plot(fenno_NA)
+fenno_dist<- terra::distance(fenno_NA)
+plot(fenno_dist)
+fenno_dist_NA<- fenno_dist
+fenno_dist_NA[fenno_dist_NA==0]<- NA
+plot(fenno_dist_NA)
+writeRaster(fenno_dist_NA, "data/distance_to_coast_ll.tif", overwrite=T)
+
+
+
+
+###need to remake the presence points for sdm package rather than Damaris' tutorials
+isch_dat <- read.table('data/Ischnura_elegans_2022_10_26.csv', header=T, sep=',')
+isch_start<- isch_dat[(isch_dat$year>=2000) &(isch_dat$year<=2013) &(!is.na(isch_dat$year)),]
+isch_occ<- isch_start[,c(5,4)]
+colnames(isch_occ)<- c("lon", "lat")
+train_i <- sample(seq_len(nrow(isch_occ)), size=round(0.7*nrow(isch_occ)))
+
+# Then, we can subset the training and testing data
+isch_train <- isch_occ[train_i,]
+isch_test <- isch_occ[-train_i,]
+# We store the split information for later:
+write(train_i, file='data/sdm_indices_traindata.txt')
+write.table(isch_train, "data/sdm_isch_train.txt", sep="\t", quote=F, row.names=F)
+write.table(isch_test, "data/sdm_isch_test.txt", sep="\t", quote=F, row.names=F)
+
+isch_sp<- vect(isch_occ, crs=crs(clim_fenno))
+isch_sp$species=1
+ipts_sp<- terra::project(isch_sp,"EPSG:3006" )
+points(ipts_sp)
+
+##get presence points just for 2013
+isch_dat <- read.table('data/Ischnura_elegans_2022_10_26.csv', header=T, sep=',')
+isch_start<- isch_dat[(isch_dat$year==2013) &(!is.na(isch_dat$year)),]
+isch_occ<- isch_start[,c(5,4)]
+colnames(isch_occ)<- c("lon", "lat")
+write.table(isch_occ, "data/sdm_isch_2013.txt", sep="\t", quote=F, row.names=F)
+
+
+#exploring CHELSA data
+chelsa_2013<- rast("D:/Post_doc/Ischnura_SDM/CHELSA/chelsa_Biovars_2013_extv3.tif")
+
+plot(chelsa_ex)
+chelsa_fenno<- crop(chelsa_2013, fenno_coast)
+v_chelsa<- vifstep(chelsa_fenno)
+chelsa_fenno_ex<- exclude(chelsa_fenno, v_chelsa)
+writeRaster(chelsa_fenno_ex, "data/chelsa_fenno_ex_ll.tif", overwrite=T)
+plot(chelsa_fenno_ex)
+
+
+#using variables that Lesley used
 #stack(c(elev.mask, dcoast.mask2, ecoreg.mask, bio1.mask, bio2.mask, bio8.mask, bio10.mask))
+
+chelsa_2013<- rast("D:/Post_doc/Ischnura_SDM/CHELSA/upto_2013/chelsa_Biovars_2013_extv3.tif")
+chelsa_fenno<- crop(chelsa_2013, fenno_coast)
+chelsa_lesley<- subset(chelsa_fenno, c(1,2,8,10))
+writeRaster(chelsa_lesley, "data/chelsa_lesley_ll.tif", overwrite=T)
+
+
+#take the mean of 2000-2013
+chelsa_ls<- list.files("D:/Post_doc/Ischnura_SDM/CHELSA/upto_2013/")
+yr_stack<- rast("D:/Post_doc/Ischnura_SDM/CHELSA/upto_2013/chelsa_Biovars_2000_extv3.tif")
+for(f in 2:length(chelsa_ls)){
+  yr_ras<- rast(paste("D:/Post_doc/Ischnura_SDM/CHELSA/upto_2013/", chelsa_ls[f],sep=""))
+  yr_stack<- yr_stack + yr_ras
+  rm(yr_ras)
+}
+yr_ave<- yr_stack/length(chelsa_ls)
+chelsa_mean_fenno<- crop(yr_ave, fenno_coast)
+writeRaster(chelsa_mean_fenno, "data/chelsa_yrmean_crop_ll.tif", overwrite=T)
+chelsa_mean_lesley<- subset(chelsa_mean_fenno, c(1,2,8,10))
+writeRaster(chelsa_mean_lesley, "data/chelsa_yr_mean_crop_lesley_ll.tif", overwrite=T)
+
+
+camila<- rast("D:/Post_doc/Ischnura_SDM/CHELSA/averaged_biovars.tif")
