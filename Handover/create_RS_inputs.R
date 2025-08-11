@@ -206,7 +206,7 @@ plot(swefin_hab_2023)
 
 #read in the presence points
 pres_points<- read.table("data/sdm_fenno/dynamic_pres_impute_dataset.txt", header=T)
-#take only 2013 points?
+#take points up to 2013
 pres_2013<- pres_points[pres_points$year<=2013,] #3968 observation
 
 #create a raster to hold species presence data
@@ -230,6 +230,9 @@ extract_2013_dup<- extract_2013[!duplicated(extract_2013[c('cell')]), ] #781
 presence_res_5[!(is.na(presence_res_5))]<- 0
 presence_res_5[extract_2013$cell]=1
 plot(presence_res_5)
+#to make sure they match the habitat files exactly
+swefin_hab_2013<-rast("data/RS_swefin/hab_type_2013_1km.tif")
+presence_res_5<- resample(presence_res_5, swefin_hab_2013)
 writeRaster(presence_res_5, "data/RS_swefin/initial_dist_5km.tif", overwrite=T)
 writeRaster(presence_res_5, "data/RS_swefin/initial_dist_5km.asc", NAflag=-99, overwrite=TRUE)
 
@@ -247,6 +250,8 @@ presence_res_1<- disagg(presence_res_5, 5)
 presence_ras[!(is.na(presence_ras))]<- 0
 presence_ras<- mosaic(presence_ras, presence_res_1, fun="max")
 plot(presence_ras)
+#to make sure they match the habitat files exactly
+presence_ras<- resample(presence_ras, swefin_hab_2013)
 writeRaster(presence_ras, "data/RS_swefin/initial_dist_1km.tif", overwrite=T)
 writeRaster(presence_ras, "data/RS_swefin/initial_dist_1km.asc", NAflag=-99, overwrite=TRUE)
 
@@ -266,6 +271,9 @@ extract_2013_dup<- extract_2013[!duplicated(extract_2013[c('cell')]), ] #621
 swe_presence_res_5[!(is.na(swe_presence_res_5))]<- 0
 swe_presence_res_5[extract_2013$cell]=1
 plot(swe_presence_res_5)
+#to make sure they match the habitat files exactly
+swe_hab_2013<-rast("data/RS_swe/hab_type_2013_1km.tif")
+swe_presence_res_5<- resample(swe_presence_res_5, swe_hab_2013)
 writeRaster(swe_presence_res_5, "data/RS_swe/initial_dist_5km.tif", overwrite=T)
 writeRaster(swe_presence_res_5, "data/RS_swe/initial_dist_5km.asc", NAflag=-99, overwrite=TRUE)
 
@@ -281,6 +289,8 @@ swe_presence_res_1<- disagg(swe_presence_res_5, 5)
 swe_presence_ras[!(is.na(swe_presence_ras))]<- 0
 swe_presence_ras<- mosaic(swe_presence_ras, swe_presence_res_1, fun="max")
 plot(swe_presence_ras)
+#to make sure they match the habitat files exactly
+swe_presence_ras<- resample(swe_presence_ras, swe_hab_2013)
 writeRaster(swe_presence_ras, "data/RS_swe/initial_dist_1km.tif", overwrite=T)
 #write to txt file
 writeRaster(swe_presence_ras, "data/RS_swe/initial_dist_1km.asc", NAflag=-99, overwrite=TRUE)
