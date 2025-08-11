@@ -6,20 +6,6 @@
 library(terra)
 library(sdm)
 
-# library(data.table)
-# library(geodata)
-
-# library(dismo)
-# library(maps)
-# library(CoordinateCleaner)
-# library(rgbif)
-# library(corrplot)
-# library(mecofun)
-# library(usdm)
-# library(mgcv)
-# library(predicts)
-# library(sp)
-
 
 setwd("C:/Users/Rey/Documents/Ischnura/Handover")
 
@@ -123,3 +109,9 @@ for(y in 1:length(years)){
   rm(en_yr)
   gc()
 }
+
+swe_2013<- rast("data/sdm_swe/ensemble_swe_2013.img")
+swefin_2013<- rast("data/sdm_swefin/ensemble_swefin_2013.img")
+par(mfrow=c(1,2))
+plot(swe_2013)
+plot(swefin_2013)

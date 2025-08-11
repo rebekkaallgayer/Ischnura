@@ -485,15 +485,6 @@ swe_water_wgs84<- terra::project(swe_filled, land_layers[[1]])
 plot(swe_water_wgs84)
 writeRaster(swe_water_wgs84, "data/sdm_swe/swe_perc_freshwater_WGS84.tif", overwrite=T)
 swe_water_wgs84<- rast("data/sdm_swe/swe_perc_freshwater_WGS84.tif")
-#swe_water_wgs84<- resample(swe_water_wgs84, swe_blank)
-
-# SWE<- readRDS("data/gadm/gadm41_SWE_0_pk.rds")
-# crs(SWE)<- crs(fenno_coast)
-# swe_blank<- mask(fenno_coast, SWE)
-# swe_blank[!is.na(swe_blank)]<- 0
-# #swe_blank <- resample(swe_blank, fenno_coast)
-# writeRaster(swe_blank, "data/final_sweden/sweden_WGS84_blank.tif", overwrite=T)
-# swe_blank<- rast("data/final_sweden/sweden_WGS84_blank.tif")
 
 ##now we need to subset out Sweden+Finland and Sweden on its own
 #as well as add in Sweden's water info
@@ -519,51 +510,3 @@ for(y in 1:length(years)){
   rm(yr_env)
   gc()
 }
-
-
-
-
-
-
-
-
-# swe_2013<- rast("data/final_sweden/swe_2013_layers.tif")
-swe_2013<- rast("data/total_timeseries/sweden/swe_2013_layers.tif")
-plot(swe_2013)
-
-
-
-
-
-
-
-swefin_blank_proj<- project(swefin_blank, "EPSG:3006")
-writeRaster(swefin_blank_proj, "data/total_timeseries/sweden_finland/swefin_EPSG3006_blank.tif", overwrite=T)
-res_blank<- rast(ext(swefin_blank_proj), resolution=c(1000,1000))
-crs(res_blank)<- crs(swefin_blank_proj)
-
-years<- seq(2013,2022,1)
-for(y in 1:length(years)){
-  print(years[y])
-  swefin_yr<- rast(paste("data/total_timeseries/sweden_finland/ensemble_swefin_", years[y], 
-                         ".img", sep=""))
-  proj_yr<- terra::project(swefin_yr,"EPSG:3006")
-  res_yr<- resample(proj_yr, res_blank)
-  writeRaster(res_yr, paste("data/total_timeseries/sweden_finland/swefin_en_proj_",
-                            years[y], "_1km.tif", sep=""), overwrite=T)
-}
-swefin_en_2013_proj<- rast("data/total_timeseries/sweden_finland/swefin_en_proj_2013_1km.tif")
-
-
-
-
-
-
-
-
-
-
-###########################################
-##Take a subset for Sweden only 
-##########################################
-
