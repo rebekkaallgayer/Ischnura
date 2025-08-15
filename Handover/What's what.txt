@@ -1,0 +1,11 @@
+###Descriptions of files
+
+
+##R scripts
+get_env_data.R: script for creating environmental and land layers
+get_sdm_data.R: script for working with presence/absence data and producing inputs for sdms
+run_sdm.R: script for running all sdms
+Ischnura_RS.R: script for running RS simulations
+
+##RangeShiftR simulations
+

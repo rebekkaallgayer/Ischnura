@@ -152,7 +152,7 @@ text(x=0.4, y=40,paste("R2 =", round(summary(lm_mean_dens)$adj.r.squared,2), sep
 hab_K<- as.data.frame(matrix(NA, nrow=4, ncol=3))
 colnames(hab_K)<- c("Min_suit", "Hab_type", "K")
 hab_K[,1]<- c(0, 0.15, 0.5, 0.8)
-hab_K[,2]<- c(0,1,2,3)
+hab_K[,2]<- c(1,2,3,4)
 hab_K[,3]<- c(0,1000,2500,4500)
 
 #creating habitat type layers for RS input
@@ -164,10 +164,13 @@ for(y in 1:length(years)){
   ens_yr<- rast(paste("data/RS_swe/swe_en_EPSG3006_", years[y], 
                       "_1km.tif", sep=""))
 
-  ens_yr[(ens_yr<0.15)]<- 0
-  ens_yr[(ens_yr>=0.8)]<- 3
-  ens_yr[] = ifelse(ens_yr[]>=0.15 & ens_yr[]<0.5, 1, ens_yr[])
-  ens_yr[] = ifelse(ens_yr[]>=0.5 & ens_yr[]<0.8, 2, ens_yr[])
+  ens_yr[(ens_yr>=0.8)]<- 4
+  ens_yr[(ens_yr<0.15)]<- 1
+  ens_yr[] = ifelse(ens_yr[]>=0.15 & ens_yr[]<0.5, 2, ens_yr[])
+  ens_yr[] = ifelse(ens_yr[]>=0.5 & ens_yr[]<0.8, 3, ens_yr[])
+  
+  #for some reason there are a few NaNs in here
+  ens_yr<- classify(ens_yr, cbind(NaN, NA))
 
   #plot(ens_yr)
   
@@ -181,10 +184,13 @@ for(y in 1:length(years)){
   ens_yr<- rast(paste("data/RS_swefin/swefin_en_EPSG3006_", years[y], 
                       "_1km.tif", sep=""))
 
-  ens_yr[(ens_yr<0.15)]<- 0
-  ens_yr[(ens_yr>=0.8)]<- 3
-  ens_yr[] = ifelse(ens_yr[]>=0.15 & ens_yr[]<0.5, 1, ens_yr[])
-  ens_yr[] = ifelse(ens_yr[]>=0.5 & ens_yr[]<0.8, 2, ens_yr[])
+  ens_yr[(ens_yr>=0.8)]<- 4
+  ens_yr[(ens_yr<0.15)]<- 1
+  ens_yr[] = ifelse(ens_yr[]>=0.15 & ens_yr[]<0.5, 2, ens_yr[])
+  ens_yr[] = ifelse(ens_yr[]>=0.5 & ens_yr[]<0.8, 3, ens_yr[])
+  
+  #for some reason there are a few NaNs in here
+  ens_yr<- classify(ens_yr, cbind(NaN, NA))
   
   writeRaster(ens_yr, paste("data/RS_swefin/hab_type_",
                             years[y], "_1km.tif", sep=""), overwrite=T)
@@ -212,7 +218,6 @@ pres_2013<- pres_points[pres_points$year<=2013,] #3968 observation
 #create a raster to hold species presence data
 swefin_en_proj<- rast("data/RS_swefin/swefin_en_EPSG3006_2013_1km.tif")
 presence_ras<- swefin_en_proj
-presence_res_5<- aggregate(presence_ras, 5)
 
 #to use as a reference for creating vector data with WGS84 
 #since pres data was in latlon
@@ -222,36 +227,31 @@ swefin_2013<- rast("data/sdm_swefin/ensemble_swefin_2013.img")
 pres_2013_vect<- vect(pres_2013[,4:5], geom=c("x", "y"), crs=crs(swefin_2013))
 pres_2013_proj<- terra::project(pres_2013_vect,"EPSG:3006" )
 #extract cell number
-extract_2013<- terra::extract(presence_res_5,pres_2013_proj, cells=T)
-extract_2013<- extract_2013[complete.cases(extract_2013),] #2498
-extract_2013_dup<- extract_2013[!duplicated(extract_2013[c('cell')]), ] #781
+extract_2013<- terra::extract(presence_ras,pres_2013_proj, cells=T)
+extract_2013<- extract_2013[complete.cases(extract_2013),] #3184
+extract_2013_dup<- extract_2013[!duplicated(extract_2013[c('cell')]), ] #1589
 
 #assign cells 1 and 0 for presence
-presence_res_5[!(is.na(presence_res_5))]<- 0
-presence_res_5[extract_2013$cell]=1
-plot(presence_res_5)
-#to make sure they match the habitat files exactly
-swefin_hab_2013<-rast("data/RS_swefin/hab_type_2013_1km.tif")
-presence_res_5<- resample(presence_res_5, swefin_hab_2013)
-writeRaster(presence_res_5, "data/RS_swefin/initial_dist_5km.tif", overwrite=T)
-writeRaster(presence_res_5, "data/RS_swefin/initial_dist_5km.asc", NAflag=-99, overwrite=TRUE)
-
+presence_ras[!(is.na(presence_ras))]<- 0
+presence_ras[extract_2013$cell]=1
+plot(presence_ras)
 
 SWE<- readRDS("data/gadm/gadm41_SWE_0_pk.rds")
 FIN<- readRDS("data/gadm/gadm41_FIN_0_pk.rds")
 swfin<- terra::union(SWE, FIN)
 swfin_proj<- terra::project(swfin, "EPSG:3006")
-plot(presence_res_5, col=c("white", "red"))
+plot(presence_ras, col=c("white", "red"))
 plot(swfin_proj, add=T)
 
-#try adding original res with aggregated
-#disaggregate again to get back to 1km so we can fill in the gaps
-presence_res_1<- disagg(presence_res_5, 5)
-presence_ras[!(is.na(presence_ras))]<- 0
-presence_ras<- mosaic(presence_ras, presence_res_1, fun="max")
-plot(presence_ras)
 #to make sure they match the habitat files exactly
-presence_ras<- resample(presence_ras, swefin_hab_2013)
+swefin_hab_2013<-rast("data/RS_swefin/hab_type_2013_1km.tif")
+presence_ras_crop<- crop(presence_ras, swefin_hab_2013)
+#try it with 0s instead of NAs
+presence_ras_crop[is.na(presence_ras_crop)]<- 0
+plot(presence_ras_crop)
+writeRaster(presence_ras_crop, "data/RS_swe/initial_dist_1km_0.asc", NAflag=-99, overwrite=TRUE)
+
+#save files
 writeRaster(presence_ras, "data/RS_swefin/initial_dist_1km.tif", overwrite=T)
 writeRaster(presence_ras, "data/RS_swefin/initial_dist_1km.asc", NAflag=-99, overwrite=TRUE)
 
@@ -260,37 +260,102 @@ writeRaster(presence_ras, "data/RS_swefin/initial_dist_1km.asc", NAflag=-99, ove
 #get it for Sweden only
 swe_en_proj<- rast("data/RS_swe/swe_en_EPSG3006_2013_1km.tif")
 swe_presence_ras<- swe_en_proj
-swe_presence_res_5<- aggregate(swe_presence_ras, 5)
 
 #extract cell number
-extract_2013<- terra::extract(swe_presence_res_5,pres_2013_proj, cells=T)
-extract_2013<- extract_2013[complete.cases(extract_2013),] #2145
-extract_2013_dup<- extract_2013[!duplicated(extract_2013[c('cell')]), ] #621
+extract_2013<- terra::extract(swe_presence_ras,pres_2013_proj, cells=T)
+extract_2013<- extract_2013[complete.cases(extract_2013),] #2745
+extract_2013_dup<- extract_2013[!duplicated(extract_2013[c('cell')]), ] #1328
 
 #assign cells 1 and 0 for presence
-swe_presence_res_5[!(is.na(swe_presence_res_5))]<- 0
-swe_presence_res_5[extract_2013$cell]=1
-plot(swe_presence_res_5)
-#to make sure they match the habitat files exactly
-swe_hab_2013<-rast("data/RS_swe/hab_type_2013_1km.tif")
-swe_presence_res_5<- resample(swe_presence_res_5, swe_hab_2013)
-writeRaster(swe_presence_res_5, "data/RS_swe/initial_dist_5km.tif", overwrite=T)
-writeRaster(swe_presence_res_5, "data/RS_swe/initial_dist_5km.asc", NAflag=-99, overwrite=TRUE)
+swe_presence_ras[!(is.na(swe_presence_ras))]<- 0
+swe_presence_ras[extract_2013$cell]=1
+plot(swe_presence_ras)
 
 #plot
 SWE<- readRDS("data/gadm/gadm41_SWE_0_pk.rds")
 swe_out_proj<- terra::project(SWE, "EPSG:3006")
-plot(swe_presence_res_5, col=c("white", "red"))
+plot(swe_presence_ras, col=c("white", "red"))
 plot(swe_out_proj, add=T)
 
-#try adding original res with aggregated
-#disaggregate again to get back to 1km so we can fill in the gaps
-swe_presence_res_1<- disagg(swe_presence_res_5, 5)
-swe_presence_ras[!(is.na(swe_presence_ras))]<- 0
-swe_presence_ras<- mosaic(swe_presence_ras, swe_presence_res_1, fun="max")
-plot(swe_presence_ras)
 #to make sure they match the habitat files exactly
-swe_presence_ras<- resample(swe_presence_ras, swe_hab_2013)
-writeRaster(swe_presence_ras, "data/RS_swe/initial_dist_1km.tif", overwrite=T)
-#write to txt file
-writeRaster(swe_presence_ras, "data/RS_swe/initial_dist_1km.asc", NAflag=-99, overwrite=TRUE)
+swe_hab_2013<-rast("data/RS_swe/hab_type_2013_1km.tif")
+swe_presence_ras_crop<- crop(swe_presence_ras, swe_hab_2013)
+
+#try it with 0s instead of NAs
+swe_presence_ras_crop[is.na(swe_presence_ras_crop)]<- 0
+plot(swe_presence_ras_crop)
+
+#save files
+writeRaster(swe_presence_ras_crop, "data/RS_swe/initial_dist_1km.tif", overwrite=T)
+writeRaster(swe_presence_ras_crop, "data/RS_swe/initial_dist_1km.asc", NAflag=-99, overwrite=TRUE)
+
+
+
+#####################
+##cutting off the south of sweden
+#####################
+years<- seq(2013,2023,1)
+for(y in 1:length(years)){
+  print(years[y])
+  hab_yr<- rast(paste("data/RS_swe/hab_type_",
+                      years[y], "_1km.tif", sep=""))
+
+  
+  # Define extent to exclude rows (e.g., remove ~300 rows)
+  new_extent <- ext(xmin(hab_yr), xmax(hab_yr), 6450000, ymax(hab_yr))  # Adjust ymin/ymax as needed
+  cropped_raster <- crop(hab_yr, new_extent)
+  
+  writeRaster(cropped_raster, paste("data/RS_swe/hab_type_",
+                            years[y], "_1km_crop.tif", sep=""), overwrite=T)
+  writeRaster(cropped_raster, paste("data/RS_swe/hab_type_", 
+                                    years[y], "_1km_crop.asc", 
+                            sep=""), NAflag=-99, overwrite=TRUE)
+}
+
+######################
+##creating initial distribution for the range front
+#####################
+
+##Sweden
+spdist_base<- rast("data/RS_swe/initial_dist_1km.tif")
+hab_base<- rast("data/RS_swe/hab_type_2013_1km_crop.tif")
+spdist_crop<- crop(spdist_base, hab_base)
+plot(spdist_crop)
+writeRaster(spdist_crop, "data/RS_swe/initial_dist_1km_crop.tif", overwrite=T)
+writeRaster(spdist_crop, "data/RS_swe/initial_dist_1km_crop.asc", NAflag=-99, overwrite=TRUE)
+
+
+###############################################
+##edit files for running RSR with dynamic landscapes
+##############################################
+
+#it's important that all the NAs in the dynamic landscapes have to match
+#I know that yeas 2013-2018 have no issues, but 2019 has new NAs 
+#after checking the rest of the years, 2019-2023 have the same NAs
+#this is most likely due to using era5 data for these years!
+
+years<- seq(2013,2023,1)
+hab_13<- rast("data/RS_swe/hab_type_2013_1km_crop.tif")
+hab_19<- rast("data/RS_swe/hab_type_2019_1km_crop.tif")
+for(y in 1:length(years)){
+  print(years[y])
+  hab_yr<- rast(paste("data/RS_swe/hab_type_",
+                      years[y], "_1km_crop.tif", sep=""))
+  hab_matched<- hab_yr
+  if(years[y]<2019){
+    hab_matched <- mask(hab_yr, hab_19)
+  }
+  else{
+    hab_matched <- mask(hab_yr, hab_13)
+  }
+  na_cells_matched <- which(is.na(values(hab_matched)))
+  print(length(na_cells_matched))
+  
+  writeRaster(hab_matched, paste("data/RS_swe/hab_type_",
+                                    years[y], "_1km_cropNA.tif", sep=""), 
+              datatype="INT4S", overwrite=T)
+  writeRaster(hab_matched, paste("data/RS_swe/hab_type_", 
+                                    years[y], "_1km_cropNA.asc", 
+                                    sep=""), NAflag=-99, 
+              datatype="INT4S",overwrite=TRUE)
+}

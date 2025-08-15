@@ -185,3 +185,116 @@ plot(r_years_rep0[['NInd.0']], col=c('grey',rev(inferno(150))), axes=F)
 plot(as.polygons(SpDist, dissolve=F), border='red', col=NA, add=T)
 plot(r_years_rep0[['NInd.20']], col=c('grey',rev(inferno(150))), axes=F)
 plot(as.polygons(SpDist, dissolve=F), border='red', col=NA, add=T)
+
+
+
+
+
+#creating initial distribution
+####################################################
+##create initial species distribution 
+##############################################
+
+#read in the presence points
+pres_points<- read.table("data/sdm_fenno/dynamic_pres_impute_dataset.txt", header=T)
+#take points up to 2013
+pres_2013<- pres_points[pres_points$year<=2013,] #3968 observation
+
+#create a raster to hold species presence data
+swefin_en_proj<- rast("data/RS_swefin/swefin_en_EPSG3006_2013_1km.tif")
+presence_ras<- swefin_en_proj
+presence_res_5<- aggregate(presence_ras, 5)
+
+#to use as a reference for creating vector data with WGS84 
+#since pres data was in latlon
+swefin_2013<- rast("data/sdm_swefin/ensemble_swefin_2013.img")
+
+#i have presence in lat lon
+pres_2013_vect<- vect(pres_2013[,4:5], geom=c("x", "y"), crs=crs(swefin_2013))
+pres_2013_proj<- terra::project(pres_2013_vect,"EPSG:3006" )
+#extract cell number
+extract_2013<- terra::extract(presence_res_5,pres_2013_proj, cells=T)
+extract_2013<- extract_2013[complete.cases(extract_2013),] #2498
+extract_2013_dup<- extract_2013[!duplicated(extract_2013[c('cell')]), ] #781
+
+#assign cells 1 and 0 for presence
+presence_res_5[!(is.na(presence_res_5))]<- 0
+presence_res_5[extract_2013$cell]=1
+plot(presence_res_5)
+#for some reason there are a few NaNs in here
+presence_res_5<- classify(presence_res_5, cbind(NaN, NA))
+#save files
+writeRaster(presence_res_5, "data/RS_swefin/initial_dist_5km.tif", overwrite=T)
+writeRaster(presence_res_5, "data/RS_swefin/initial_dist_5km.asc", NAflag=-99, overwrite=TRUE)
+
+
+SWE<- readRDS("data/gadm/gadm41_SWE_0_pk.rds")
+FIN<- readRDS("data/gadm/gadm41_FIN_0_pk.rds")
+swfin<- terra::union(SWE, FIN)
+swfin_proj<- terra::project(swfin, "EPSG:3006")
+plot(presence_res_5, col=c("white", "red"))
+plot(swfin_proj, add=T)
+
+#try adding original res with aggregated
+#disaggregate again to get back to 1km so we can fill in the gaps
+presence_res_1<- disagg(presence_res_5, 5)
+presence_ras[!(is.na(presence_ras))]<- 0
+presence_ras<- mosaic(presence_ras, presence_res_1, fun="max")
+plot(presence_ras)
+#to make sure they match the habitat files exactly
+swefin_hab_2013<-rast("data/RS_swefin/hab_type_2013_1km.tif")
+presence_ras_crop<- crop(presence_ras, swefin_hab_2013)
+#for some reason there are a few NaNs in here
+presence_ras_crop<- classify(presence_ras_crop, cbind(NaN, NA))
+writeRaster(presence_ras_crop, "data/RS_swefin/initial_dist_1km.tif", overwrite=T)
+writeRaster(presence_ras_crop, "data/RS_swefin/initial_dist_1km.asc", NAflag=-99, overwrite=TRUE)
+
+
+##########################
+#get it for Sweden only
+swe_en_proj<- rast("data/RS_swe/swe_en_EPSG3006_2013_1km.tif")
+swe_presence_ras<- swe_en_proj
+#swe_presence_res_5<- aggregate(swe_presence_ras, 5)
+
+#extract cell number
+# extract_2013<- terra::extract(swe_presence_res_5,pres_2013_proj, cells=T)
+extract_2013<- terra::extract(swe_presence_ras,pres_2013_proj, cells=T)
+extract_2013<- extract_2013[complete.cases(extract_2013),] #2145
+extract_2013_dup<- extract_2013[!duplicated(extract_2013[c('cell')]), ] #621
+
+#assign cells 1 and 0 for presence
+swe_presence_res_5[!(is.na(swe_presence_res_5))]<- 0
+swe_presence_res_5[extract_2013$cell]=1
+plot(swe_presence_res_5)
+#for some reason there are a few NaNs in here
+swe_presence_res_5<- classify(swe_presence_res_5, cbind(NaN, NA))
+#save files
+writeRaster(swe_presence_res_5, "data/RS_swe/initial_dist_5km.tif", overwrite=T)
+writeRaster(swe_presence_res_5, "data/RS_swe/initial_dist_5km.asc", NAflag=-99, overwrite=TRUE)
+
+#plot
+SWE<- readRDS("data/gadm/gadm41_SWE_0_pk.rds")
+swe_out_proj<- terra::project(SWE, "EPSG:3006")
+plot(swe_presence_res_5, col=c("white", "red"))
+plot(swe_out_proj, add=T)
+
+#try adding original res with aggregated
+#disaggregate again to get back to 1km so we can fill in the gaps
+swe_presence_res_1<- disagg(swe_presence_res_5, 5)
+swe_presence_ras[!(is.na(swe_presence_ras))]<- 0
+swe_presence_ras<- mosaic(swe_presence_ras, swe_presence_res_1, fun="max") #15525
+plot(swe_presence_ras)
+
+#to make sure they match the habitat files exactly
+swe_hab_2013<-rast("data/RS_swe/hab_type_2013_1km.tif")
+swe_presence_ras<- crop(swe_presence_ras, swe_hab_2013)
+#for some reason there are a few NaNs in here
+swe_presence_ras<- classify(swe_presence_ras, cbind(NaN, NA))
+writeRaster(swe_presence_ras, "data/RS_swe/initial_dist_1km.tif", overwrite=T)
+#write to txt file
+writeRaster(swe_presence_ras, "data/RS_swe/initial_dist_1km.asc", NAflag=-99, overwrite=TRUE)
+
+#try it with 0s instead of NAs
+swe_presence_ras[is.na(swe_presence_ras)]<- 0
+plot(swe_presence_ras)
+writeRaster(swe_presence_ras, "data/RS_swe/initial_dist_1km_0.asc", NAflag=-99, overwrite=TRUE)
