@@ -153,7 +153,7 @@ hab_K<- as.data.frame(matrix(NA, nrow=4, ncol=3))
 colnames(hab_K)<- c("Min_suit", "Hab_type", "K")
 hab_K[,1]<- c(0, 0.15, 0.5, 0.8)
 hab_K[,2]<- c(1,2,3,4)
-hab_K[,3]<- c(0,1000,2500,4500)
+hab_K[,3]<- c(0,100,250,450)
 
 #creating habitat type layers for RS input
 #remember that this is now in EPSG3006 because RS needs it in metres

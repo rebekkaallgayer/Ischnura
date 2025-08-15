@@ -61,7 +61,7 @@ plot(Landmap.f, col=custom.pal, axes=F)
 plot(as.polygons(SpDist, dissolve=F), border='red', col=NA, add=T)
 
 # carrying capacities and landscape parameter object
-carrycap <- c(0, 1, 2.5, 4.5)
+carrycap <- c(0, 1, 2.5, 4.5) #because this is inds/ha and we want 100-450 inds/cell for a 1kmx1km res
 land <- ImportedLandscape(LandscapeFile = "hab_type_2013_1km_crop.asc", 
                           Resolution = 1000, 
                           Nhabitats = 4, 
